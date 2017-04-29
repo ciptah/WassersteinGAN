@@ -31,7 +31,6 @@ parser.add_argument('--lrD', type=float, default=0.00005, help='learning rate fo
 parser.add_argument('--lrG', type=float, default=0.00005, help='learning rate for Generator, default=0.00005')
 parser.add_argument('--beta1', type=float, default=0.5, help='beta1 for adam. default=0.5')
 parser.add_argument('--cuda'  , action='store_true', help='enables cuda')
-parser.add_argument('--ngpu'  , type=int, default=1, help='number of GPUs to use')
 parser.add_argument('--netG', default='', help="path to netG (to continue training)")
 parser.add_argument('--netD', default='', help="path to netD (to continue training)")
 parser.add_argument('--clamp_lower', type=float, default=-0.01)
@@ -89,7 +88,6 @@ assert dataset
 dataloader = torch.utils.data.DataLoader(dataset, batch_size=opt.batchSize,
                                          shuffle=True, num_workers=int(opt.workers))
 
-ngpu = int(opt.ngpu)
 nz = int(opt.nz)
 ngf = int(opt.ngf)
 ndf = int(opt.ndf)
@@ -105,26 +103,18 @@ def weights_init(m):
         m.weight.data.normal_(1.0, 0.02)
         m.bias.data.fill_(0)
 
-if opt.noBN:
-    netG = dcgan.DCGAN_G_nobn(opt.imageSize, nz, nc, ngf, ngpu, n_extra_layers)
-elif opt.mlp_G:
-    netG = mlp.MLP_G(opt.imageSize, nz, nc, ngf, ngpu)
-else:
-    netG = dcgan.DCGAN_G(opt.imageSize, nz, nc, ngf, ngpu, n_extra_layers)
-
+netG = dcgan.DCGAN_G(opt.imageSize, nz, nc, ngf, n_extra_layers)
 netG.apply(weights_init)
 if opt.netG != '': # load checkpoint if needed
     netG.load_state_dict(torch.load(opt.netG))
 print(netG)
 
-if opt.mlp_D:
-    netD = mlp.MLP_D(opt.imageSize, nz, nc, ndf, ngpu)
-else:
-    netD = dcgan.DCGAN_D(opt.imageSize, nz, nc, ndf, ngpu, n_extra_layers)
-    netD.apply(weights_init)
+netE = dcgan.DCGAN_E(opt.imageSize, nz, nc, ndf, n_extra_layers)
+if opt.netE != '':
+    netE.load_state_dict(torch.load(opt.netE))
+print(netE)
 
-if opt.netD != '':
-    netD.load_state_dict(torch.load(opt.netD))
+netD = mlp.MLP_D(opt.imageSize, nc, netE.cndf, ndf)
 print(netD)
 
 input = torch.FloatTensor(opt.batchSize, 3, opt.imageSize, opt.imageSize)
@@ -136,6 +126,7 @@ mone = one * -1
 if opt.cuda:
     netD.cuda()
     netG.cuda()
+    netE.cuda()
     input = input.cuda()
     one, mone = one.cuda(), mone.cuda()
     noise, fixed_noise = noise.cuda(), fixed_noise.cuda()
@@ -143,10 +134,11 @@ if opt.cuda:
 # setup optimizer
 if opt.adam:
     optimizerD = optim.Adam(netD.parameters(), lr=opt.lrD, betas=(opt.beta1, 0.999))
-    optimizerG = optim.Adam(netG.parameters(), lr=opt.lrG, betas=(opt.beta1, 0.999))
+    optimizerG = optim.Adam(netG.parameters() + netE.parameters(),
+            lr=opt.lrG, betas=(opt.beta1, 0.999))
 else:
     optimizerD = optim.RMSprop(netD.parameters(), lr = opt.lrD)
-    optimizerG = optim.RMSprop(netG.parameters(), lr = opt.lrG)
+    optimizerG = optim.RMSprop(netG.parameters() + netE.parameters(), lr = opt.lrG)
 
 gen_iterations = 0
 for epoch in range(opt.niter):
@@ -183,27 +175,33 @@ for epoch in range(opt.niter):
             if opt.cuda:
                 real_cpu = real_cpu.cuda()
             input.resize_as_(real_cpu).copy_(real_cpu)
+            inputz = Variable(netE(Variable(input, volatile=True)).data)
             inputv = Variable(input)
 
-            errD_real = netD(inputv)
+            errD_real = netD(inputz, inputv)
             errD_real.backward(one)
 
             # train with fake
             noise.resize_(opt.batchSize, nz, 1, 1).normal_(0, 1)
             noisev = Variable(noise, volatile = True) # totally freeze netG
             fake = Variable(netG(noisev).data)
+            inputz = Variable(noise)
             inputv = fake
-            errD_fake = netD(inputv)
+            errD_fake = netD(inputz, inputv)
             errD_fake.backward(mone)
             errD = errD_real - errD_fake
             optimizerD.step()
 
+        if i == len(dataloader):
+            break
+
         ############################
-        # (2) Update G network
+        # (2) Update G, E network
         ###########################
         for p in netD.parameters():
             p.requires_grad = False # to avoid computation
         netG.zero_grad()
+        netE.zero_grad()
         # in case our last batch was the tail batch of the dataloader,
         # make sure we feed a full batch of noise
         noise.resize_(opt.batchSize, nz, 1, 1).normal_(0, 1)
@@ -211,6 +209,19 @@ for epoch in range(opt.niter):
         fake = netG(noisev)
         errG = netD(fake)
         errG.backward(one)
+
+        data = data_iter.next()
+        i += 1
+            # train with real
+        real_cpu, _ = data
+        batch_size = real_cpu.size(0)
+        if opt.cuda:
+            real_cpu = real_cpu.cuda()
+        input.resize_as_(real_cpu).copy_(real_cpu)
+        inputv = Variable(input)
+        errE = netE(inputv)
+        errE.backward(mone)
+
         optimizerG.step()
         gen_iterations += 1
 
