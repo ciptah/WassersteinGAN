@@ -26,6 +26,7 @@ parser.add_argument('--nc', type=int, default=3, help='input image channels')
 parser.add_argument('--nz', type=int, default=100, help='size of the latent z vector')
 parser.add_argument('--ngf', type=int, default=64)
 parser.add_argument('--ndf', type=int, default=64)
+parser.add_argument('--nconv', type=int, default=64)
 parser.add_argument('--nef', type=int, default=64)
 parser.add_argument('--niter', type=int, default=25, help='number of epochs to train for')
 parser.add_argument('--lrD', type=float, default=0.00005, help='learning rate for Critic, default=0.00005')
@@ -37,6 +38,7 @@ parser.add_argument('--netD', default='', help="path to netD (to continue traini
 parser.add_argument('--clamp_lower', type=float, default=-0.01)
 parser.add_argument('--clamp_upper', type=float, default=0.01)
 parser.add_argument('--Diters', type=int, default=5, help='number of D iters per each G iter')
+parser.add_argument('--Diter_plus', type=int, default=200, help='number of D iters per each G iter for "large" phases')
 parser.add_argument('--noBN', action='store_true', help='use batchnorm or not (only for DCGAN)')
 parser.add_argument('--mlp_G', action='store_true', help='use MLP for G')
 parser.add_argument('--mlp_D', action='store_true', help='use MLP for D')
@@ -92,6 +94,7 @@ dataloader = torch.utils.data.DataLoader(dataset, batch_size=opt.batchSize,
 nz = int(opt.nz)
 ngf = int(opt.ngf)
 ndf = int(opt.ndf)
+nconv = int(opt.nconv)
 nef = int(opt.nef)
 nc = int(opt.nc)
 n_extra_layers = int(opt.n_extra_layers)
@@ -119,15 +122,14 @@ print(netE)
 
 nx = opt.imageSize**2 * nc
 if opt.mlp_D:
-    print('using MLP discriminator')
-    netD = mlp.MLP_D(nx, netE.nz, ndf)
+    #print('using MLP discriminator')
+    netD = mlp.MLP_D(nx + netE.nz, ndf)
 else:
     # Use a DCGAN to turn the image to a vector, then compare against z.
     print('using DCNN->MLP discriminator')
-    netD = mlp.MLP_ED(
-            dcgan.DCGAN_E(opt.imageSize, nz, nc, nef, n_extra_layers),
-            netE.nz, ndf)
+    netD = mlp.MLP_ED(opt.imageSize, nz, nc, ndf, nconv=nconv)
     netD.netE.apply(weights_init)
+    netD.netG.apply(weights_init)
 print(netD)
 
 input = torch.FloatTensor(opt.batchSize, 3, opt.imageSize, opt.imageSize)
@@ -169,6 +171,7 @@ for epoch in range(opt.niter):
     print('Starting epoch:', epoch)
     data_iter = rcpu(dataloader)
     i = 0
+    redo = 0
     while i < len(dataloader):
         ############################
         # (1) Update D network
@@ -179,8 +182,8 @@ for epoch in range(opt.niter):
         # train the discriminator Diters times
         if gen_iterations == 0:
             Diters = 1 # Self-test
-        elif gen_iterations < 25 or gen_iterations % 500 == 0:
-            Diters = 100
+        elif redo > 0 or gen_iterations < 25 or gen_iterations % 500 == 0:
+            Diters = opt.Diter_plus
         else:
             Diters = opt.Diters
         j = 0
@@ -217,6 +220,15 @@ for epoch in range(opt.niter):
             errD = errD_real - errD_fake
             optimizerD.step()
 
+        # Hack to keep training critic if distance too low.
+        if redo < 10 and errD.abs().data[0] < 0.000001:
+            if redo == 0:
+                print(errD.abs().data[0])
+            redo += 1
+            continue
+        if redo > 0:
+            redo = -3
+
         if i == len(dataloader):
             break
 
@@ -251,7 +263,7 @@ for epoch in range(opt.niter):
         optimizerG.step()
         gen_iterations += 1
 
-        if gen_iterations < 10 or gen_iterations % 50 == 0:
+        if gen_iterations < 25 or gen_iterations % 50 == 0:
             print('[%d/%d][%d/%d][%d] Loss_D: %f Loss_B: %f'
                 % (epoch, opt.niter, i, len(dataloader), gen_iterations,
                 errD.data[0], errB.data[0]))

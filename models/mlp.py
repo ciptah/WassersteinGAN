@@ -4,15 +4,16 @@ from __future__ import print_function
 from __future__ import unicode_literals
 import torch
 import torch.nn as nn
+import models.dcgan as dg
 
 
 class MLP_D(nn.Module):
-    def __init__(self, nx, nz, ndf):
+    def __init__(self, n, ndf):
         super(MLP_D, self).__init__()
 
         main = nn.Sequential(
             # Z goes into a linear of size: ndf
-            nn.Linear(nx + nz, ndf),
+            nn.Linear(n, ndf),
             nn.ReLU(True),
             nn.Linear(ndf, ndf),
             nn.ReLU(True),
@@ -22,21 +23,30 @@ class MLP_D(nn.Module):
         )
         self.main = main
 
-    def forward(self, inputz, inputv):
-        inputv = inputv.view(inputv.size(0), -1).squeeze()
-        input = torch.cat([inputz, inputv], 1)
-
+    def forward(self, input):
         output = self.main(input)
         output = output.mean(0)
         return output.view(1)
 
 class MLP_ED(nn.Module):
     '''Combines DCGAN and MLP.'''
-    def __init__(self, netE, nz, ndf):
+    def __init__(self, isize, nz, nc, ndf, div=2, nconv=0):
         super(MLP_ED, self).__init__()
-        self.netE = netE
-        self.mlp = MLP_D(self.netE.nz, netE.nz, ndf)
+        if nconv == 0:
+            nconv = ndf
+        self.netG = dg.DCGAN_G(isize // div, nz, nc, nconv)
+        self.netE = dg.DCGAN_E(isize // div, nz, nc, nconv)
+        self.pool = nn.AvgPool2d(2)
+
+        all_dim = int(2 * (nc * (isize // div)**2 + nz))
+        self.mlp = MLP_D(all_dim, ndf)
         self.nz = nz
-    def forward(self, inputz, inputv):
-        inputzz = self.netE(inputv)
-        return self.mlp(inputzz, inputz)
+
+    def forward(self, z, x):
+        x = self.pool(x)
+        zt = self.netE(x)
+        xt = self.netG(z.unsqueeze(2).unsqueeze(3))
+        x = x.view(x.size(0), -1).squeeze()
+        xt = xt.view(x.size(0), -1).squeeze()
+        all_ins = torch.cat([z, zt, x, xt], 1)
+        return self.mlp(all_ins)
