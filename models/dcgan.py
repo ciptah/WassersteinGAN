@@ -9,11 +9,19 @@ class DCGAN_E(nn.Module):
 
         main = nn.Sequential()
         # input is nc x isize x isize
-        main.add_module('initial.conv.{0}-{1}'.format(nc, nef),
-                        nn.Conv2d(nc, nef, 4, 2, 1, bias=False))
-        main.add_module('initial.relu.{0}'.format(nef),
-                        nn.LeakyReLU(0.2, inplace=True))
-        csize, cnef = isize / 2, nef
+        # in, out, kernel, stride, padding
+        # main.add_module('initial.conv.{0}-{1}'.format(nc, nef),
+        #                 nn.Conv2d(nc, nef, 4, 2, 1, bias=False))
+        csize, cnef = isize, nc
+        # 32 -> 28 -> 24 -> 20 -> 16
+        while csize > isize / 2:
+            main.add_module('initial.conv.{0}-{1}'.format(nc, nef),
+                            nn.Conv2d(cnef, nef, 5, 1, 0, bias=False))
+            main.add_module('initial.batchnorm', nn.BatchNorm2d(nef))
+            main.add_module('initial.relu.{0}'.format(nef),
+                            nn.LeakyReLU(0.2, inplace=True))
+            csize, cnef = csize - 4, nef
+        assert csize == isize / 2
 
         # Extra layers
         for t in range(n_extra_layers):
@@ -87,8 +95,17 @@ class DCGAN_G(nn.Module):
             main.add_module('extra-layers-{0}.{1}.relu'.format(t, cngf),
                             nn.ReLU(True))
 
+        # 32 <- 28 <- 24 <- 20 <- 16
+        while csize > isize / 2:
+            main.add_module('final.conv.{0}-{1}'.format(nc, nef),
+                            nn.ConvTranspose2d(cngf, cngf, 5, 1, 0, bias=False))
+            main.add_module('final.batchnorm', nn.BatchNorm2d(cngf))
+            main.add_module('final.relu.{0}'.format(nef), nn.ReLu(True))
+            csize, cngf = csize + 4, cngf
+        assert csize == isize
+
         main.add_module('final.{0}-{1}.convt'.format(cngf, nc),
-                        nn.ConvTranspose2d(cngf, nc, 4, 2, 1, bias=False))
+                        nn.ConvTranspose2d(cngf, nc, 1, 1, 0, bias=False))
         main.add_module('final.{0}.tanh'.format(nc),
                         nn.Tanh())
         self.main = main
