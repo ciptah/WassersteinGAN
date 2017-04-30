@@ -27,10 +27,11 @@ parser.add_argument('--nz', type=int, default=100, help='size of the latent z ve
 parser.add_argument('--ngf', type=int, default=64)
 parser.add_argument('--ndf', type=int, default=64)
 parser.add_argument('--nconv', type=int, default=64)
+parser.add_argument('--div', type=int, default=2,
+        help='scale of discriminator networks (power of 2')
 parser.add_argument('--nef', type=int, default=64)
 parser.add_argument('--niter', type=int, default=25, help='number of epochs to train for')
 parser.add_argument('--nstart', type=int, default=25, help='number of startup generator runs')
-parser.add_argument('--lrD', type=float, default=0.00005, help='learning rate for Critic, default=0.00005')
 parser.add_argument('--lrD', type=float, default=0.00005, help='learning rate for Critic, default=0.00005')
 parser.add_argument('--lrG', type=float, default=0.00005, help='learning rate for Generator, default=0.00005')
 parser.add_argument('--beta1', type=float, default=0.5, help='beta1 for adam. default=0.5')
@@ -70,6 +71,17 @@ if opt.dataset in ['imagenet', 'folder', 'lfw']:
                                transform=transforms.Compose([
                                    transforms.Scale(opt.imageSize),
                                    transforms.CenterCrop(opt.imageSize),
+                                   transforms.ToTensor(),
+                                   transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+                               ]))
+elif opt.dataset == 'flowers':
+    # folder dataset
+    dataset = dset.ImageFolder(root=opt.dataroot,
+                               transform=transforms.Compose([
+                                   transforms.Scale(int(opt.imageSize * 1.5)),
+                                   transforms.RandomCrop(opt.imageSize),
+                                   transforms.RandomHorizontalFlip(),
+                                   transforms.RandomVerticalFlip(),
                                    transforms.ToTensor(),
                                    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
                                ]))
@@ -129,7 +141,7 @@ if opt.mlp_D:
 else:
     # Use a DCGAN to turn the image to a vector, then compare against z.
     print('using DCNN->MLP discriminator')
-    netD = mlp.MLP_ED(opt.imageSize, nz, nc, ndf, nconv=nconv)
+    netD = mlp.MLP_ED(opt.imageSize, nz, nc, ndf, div=opt.div, nconv=nconv)
     netD.netE.apply(weights_init)
     netD.netG.apply(weights_init)
 print(netD)

@@ -34,6 +34,7 @@ class MLP_ED(nn.Module):
         super(MLP_ED, self).__init__()
         if nconv == 0:
             nconv = ndf
+        self.div = div
         self.netG = dg.DCGAN_G(isize // div, nz, nc, nconv)
         self.netE = dg.DCGAN_E(isize // div, nz, nc, nconv)
         self.pool = nn.AvgPool2d(2)
@@ -43,7 +44,10 @@ class MLP_ED(nn.Module):
         self.nz = nz
 
     def forward(self, z, x):
-        x = self.pool(x)
+        d = 1
+        while d < self.div:
+            x = self.pool(x)
+            d = d * 2
         zt = self.netE(x)
         xt = self.netG(z.unsqueeze(2).unsqueeze(3))
         x = x.view(x.size(0), -1).squeeze()
