@@ -15,10 +15,10 @@ class DCGAN_E(nn.Module):
         csize, cnef = isize, nc
         # 32 -> 28 -> 24 -> 20 -> 16
         while csize > isize / 2:
-            main.add_module('initial.conv.{0}-{1}'.format(nc, nef),
+            main.add_module('initial.conv.{2}.{0}-{1}'.format(nc, nef, csize),
                             nn.Conv2d(cnef, nef, 5, 1, 0, bias=False))
-            main.add_module('initial.batchnorm', nn.BatchNorm2d(nef))
-            main.add_module('initial.relu.{0}'.format(nef),
+            main.add_module('initial.batchnorm.{0}'.format(csize), nn.BatchNorm2d(nef))
+            main.add_module('initial.relu.{1}.{0}'.format(nef, csize),
                             nn.LeakyReLU(0.2, inplace=True))
             csize, cnef = csize - 4, nef
         assert csize == isize / 2
@@ -96,11 +96,11 @@ class DCGAN_G(nn.Module):
                             nn.ReLU(True))
 
         # 32 <- 28 <- 24 <- 20 <- 16
-        while csize > isize / 2:
-            main.add_module('final.conv.{0}-{1}'.format(nc, nef),
+        while csize < isize:
+            main.add_module('final.conv.{2}.{0}-{1}'.format(cngf, cngf, csize),
                             nn.ConvTranspose2d(cngf, cngf, 5, 1, 0, bias=False))
-            main.add_module('final.batchnorm', nn.BatchNorm2d(cngf))
-            main.add_module('final.relu.{0}'.format(nef), nn.ReLu(True))
+            main.add_module('final.batchnorm.{0}'.format(csize), nn.BatchNorm2d(cngf))
+            main.add_module('final.relu.{0}.{1}'.format(cngf, csize), nn.ReLU(True))
             csize, cngf = csize + 4, cngf
         assert csize == isize
 
