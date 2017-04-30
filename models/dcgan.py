@@ -12,15 +12,15 @@ class DCGAN_E(nn.Module):
         cnef = nc
         main.add_module('preproc.conv',
                         nn.Conv2d(nc, nef, 3, 1, 1, bias=False))
-        main.add_module('preproc.batchnorm'.format(t, cnef),
-                        nn.BatchNorm2d(cnef))
-        main.add_module('preproc.{1}.relu'.format(t, cnef),
+        main.add_module('preproc.{0}.relu'.format(cnef),
                         nn.LeakyReLU(0.2, inplace=True))
         cnef = nef
 
         # input is nc x isize x isize
         main.add_module('initial.conv.{0}-{1}'.format(nc, nef),
                         nn.Conv2d(nef, nef, 4, 2, 1, bias=False))
+        main.add_module('preproc.batchnorm',
+                        nn.BatchNorm2d(cnef))
         main.add_module('initial.relu.{0}'.format(nef),
                         nn.LeakyReLU(0.2, inplace=True))
         csize, cnef = isize / 2, nef
@@ -99,8 +99,6 @@ class DCGAN_G(nn.Module):
 
         main.add_module('final.{0}-{1}.convt'.format(cngf, cngf),
                         nn.ConvTranspose2d(cngf, cngf, 4, 2, 1, bias=False))
-        main.add_module('final-{0}.batchnorm'.format(cngf),
-                        nn.BatchNorm2d(cngf))
         main.add_module('final-{0}.relu'.format(cngf),
                         nn.ReLU(True))
         main.add_module('final.{0}-{1}.convt'.format(cngf, nc),
