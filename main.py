@@ -11,6 +11,7 @@ import torchvision.datasets as dset
 import torchvision.transforms as transforms
 import torchvision.utils as vutils
 from torch.autograd import Variable
+from time import clock
 import os
 
 import models.dcgan as dcgan
@@ -181,6 +182,7 @@ def rcpu(dataloader):
 
 gen_iterations = 0
 print('Starting training')
+past = clock()
 for epoch in range(opt.niter):
     print('Starting epoch:', epoch)
     data_iter = rcpu(dataloader)
@@ -200,6 +202,8 @@ for epoch in range(opt.niter):
             Diters = opt.Diter_plus
         else:
             Diters = opt.Diters
+        if gen_iterations > 15000:
+            Diters += 1
         j = 0
         while j < Diters and i < len(dataloader):
             j += 1
@@ -278,9 +282,12 @@ for epoch in range(opt.niter):
         gen_iterations += 1
 
         if gen_iterations < opt.nstart or gen_iterations % 50 == 0:
-            print('[%d/%d][%d/%d][%d] Loss_D: %f Loss_B: %f'
-                % (epoch, opt.niter, i, len(dataloader), gen_iterations,
+            now = clock()
+            elapsed = now - past
+            print('[%d/%d][%d/%d][%d][%.2fs] Loss_D: %f Loss_B: %f'
+                % (epoch, opt.niter, i, len(dataloader), gen_iterations, elapsed,
                 errD.data[0], errB.data[0]))
+            past = now
         if gen_iterations == 1 or gen_iterations % 500 == 0:
             # Generate reconstructions of real samples as well as
             # Images from a fixed noise vector.
