@@ -149,6 +149,12 @@ input = torch.FloatTensor(opt.batchSize, 3, opt.imageSize, opt.imageSize)
 noise = torch.FloatTensor(opt.batchSize, nz, 1, 1)
 # Fixed z-vector that we can compare as training progresses.
 fixed_noise = torch.FloatTensor(opt.batchSize, nz, 1, 1).normal_(0, 1)
+
+ridx = range(len(dataset))
+random.shuffle(ridx)
+fixed_image = next(iter(dataloader))[0]
+vutils.save_image(fixed_image.mul(0.5).add(0.5),
+    '{0}/fixed_image.png'.format(opt.experiment))
 one = torch.FloatTensor([1])
 mone = one * -1
 
@@ -160,6 +166,7 @@ if opt.cuda:
     input = input.cuda()
     one, mone = one.cuda(), mone.cuda()
     noise, fixed_noise = noise.cuda(), fixed_noise.cuda()
+    fixed_image = fixed_image.cuda()
 
 # setup optimizer
 if opt.adam:
@@ -289,14 +296,12 @@ for epoch in range(opt.niter):
         if gen_iterations == 1 or gen_iterations % 500 == 0:
             # Generate reconstructions of real samples as well as
             # Images from a fixed noise vector.
-            real_z = netE(Variable(real, volatile=True))
-            real = real.mul(0.5).add(0.5)
-            vutils.save_image(real, '{0}/real_samples_{1}.png'.format(
-                opt.experiment, gen_iterations))
             fake = netG(Variable(fixed_noise, volatile=True))
             fake.data = fake.data.mul(0.5).add(0.5)
             vutils.save_image(fake.data, '{0}/fake_samples_{1}.png'.format(
                 opt.experiment, gen_iterations))
+
+            real_z = netE(Variable(fixed_image, volatile=True))
             reconst = netG(real_z.unsqueeze(2).unsqueeze(3))
             reconst.data = reconst.data.mul(0.5).add(0.5)
             vutils.save_image(reconst.data, '{0}/reconstruction_samples_{1}.png'.format(

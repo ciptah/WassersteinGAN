@@ -37,17 +37,15 @@ class MLP_ED(nn.Module):
             nconv = ndf
 
         self.netG = dg.DCGAN_G(isize, nz, nc, nconv)
-        self.netE = dg.DCGAN_E(isize, nz, nc, nconv)
+        self.netE = dg.DCGAN_E(isize, nz, nc * 2, nconv, linear_growth=True)
         self.pool = nn.AvgPool2d(2)
 
-        all_dim = int(2 * (nc * (isize)**2 + nz))
+        all_dim = 2 * nz
         self.mlp = MLP_D(all_dim, ndf)
         self.nz = nz
 
     def forward(self, z, x):
-        zt = self.netE(x)
         xt = self.netG(z.unsqueeze(2).unsqueeze(3))
-        x = x.view(x.size(0), -1).squeeze()
-        xt = xt.view(x.size(0), -1).squeeze()
-        all_ins = torch.cat([z, zt, x, xt], 1)
+        zt = self.netE(torch.cat([x, xt], 1))
+        all_ins = torch.cat([z, zt], 1)
         return self.mlp(all_ins)

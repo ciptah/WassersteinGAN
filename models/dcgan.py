@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.parallel
 
 class DCGAN_E(nn.Module):
-    def __init__(self, isize, nz, nc, nef, n_extra_layers=0):
+    def __init__(self, isize, nz, nc, nef, n_extra_layers=0, linear_growth=False):
         super(DCGAN_E, self).__init__()
         assert isize % 16 == 0, "isize has to be a multiple of 16"
 
@@ -24,16 +24,17 @@ class DCGAN_E(nn.Module):
             main.add_module('extra-layers-{0}.{1}.relu'.format(t, cnef),
                             nn.LeakyReLU(0.2, inplace=True))
 
+        growth = nef / 2
         while csize > 4:
             in_feat = cnef
-            out_feat = cnef * 2
+            out_feat = cnef + growth if linear_growth else cnef * 2
             main.add_module('pyramid.{0}-{1}.conv'.format(in_feat, out_feat),
                             nn.Conv2d(in_feat, out_feat, 4, 2, 1, bias=False))
             main.add_module('pyramid.{0}.batchnorm'.format(out_feat),
                             nn.BatchNorm2d(out_feat))
             main.add_module('pyramid.{0}.relu'.format(out_feat),
                             nn.LeakyReLU(0.2, inplace=True))
-            cnef = cnef * 2
+            cnef = out_feat
             csize = csize / 2
 
         # state size. K x 4 x 4
