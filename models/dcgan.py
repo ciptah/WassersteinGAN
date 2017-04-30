@@ -8,20 +8,22 @@ class DCGAN_E(nn.Module):
         assert isize % 16 == 0, "isize has to be a multiple of 16"
 
         main = nn.Sequential()
+
+        cnef = nc
+        main.add_module('preproc.conv',
+                        nn.Conv2d(nc, nef, 3, 1, 1, bias=False))
+        main.add_module('preproc.batchnorm'.format(t, cnef),
+                        nn.BatchNorm2d(cnef))
+        main.add_module('preproc.{1}.relu'.format(t, cnef),
+                        nn.LeakyReLU(0.2, inplace=True))
+        cnef = nef
+
         # input is nc x isize x isize
-        # in, out, kernel, stride, padding
-        # main.add_module('initial.conv.{0}-{1}'.format(nc, nef),
-        #                 nn.Conv2d(nc, nef, 4, 2, 1, bias=False))
-        csize, cnef = isize, nc
-        # 32 -> 28 -> 24 -> 20 -> 16
-        while csize > isize / 2:
-            main.add_module('initial.conv.{2}.{0}-{1}'.format(nc, nef, csize),
-                            nn.Conv2d(cnef, nef, 5, 1, 0, bias=False))
-            main.add_module('initial.batchnorm.{0}'.format(csize), nn.BatchNorm2d(nef))
-            main.add_module('initial.relu.{1}.{0}'.format(nef, csize),
-                            nn.LeakyReLU(0.2, inplace=True))
-            csize, cnef = csize - 4, nef
-        assert csize == isize / 2
+        main.add_module('initial.conv.{0}-{1}'.format(nc, nef),
+                        nn.Conv2d(nef, nef, 4, 2, 1, bias=False))
+        main.add_module('initial.relu.{0}'.format(nef),
+                        nn.LeakyReLU(0.2, inplace=True))
+        csize, cnef = isize / 2, nef
 
         # Extra layers
         for t in range(n_extra_layers):
@@ -95,17 +97,15 @@ class DCGAN_G(nn.Module):
             main.add_module('extra-layers-{0}.{1}.relu'.format(t, cngf),
                             nn.ReLU(True))
 
-        # 32 <- 28 <- 24 <- 20 <- 16
-        while csize < isize:
-            main.add_module('final.conv.{2}.{0}-{1}'.format(cngf, cngf, csize),
-                            nn.ConvTranspose2d(cngf, cngf, 5, 1, 0, bias=False))
-            main.add_module('final.batchnorm.{0}'.format(csize), nn.BatchNorm2d(cngf))
-            main.add_module('final.relu.{0}.{1}'.format(cngf, csize), nn.ReLU(True))
-            csize, cngf = csize + 4, cngf
-        assert csize == isize
-
+        main.add_module('final.{0}-{1}.convt'.format(cngf, cngf),
+                        nn.ConvTranspose2d(cngf, cngf, 4, 2, 1, bias=False))
+        main.add_module('final-{0}.batchnorm'.format(cngf),
+                        nn.BatchNorm2d(cngf))
+        main.add_module('final-{0}.relu'.format(cngf),
+                        nn.ReLU(True))
         main.add_module('final.{0}-{1}.convt'.format(cngf, nc),
-                        nn.ConvTranspose2d(cngf, nc, 1, 1, 0, bias=False))
+                        nn.ConvTranspose2d(cngf, nc, 3, 1, 1, bias=False))
+
         main.add_module('final.{0}.tanh'.format(nc),
                         nn.Tanh())
         self.main = main
