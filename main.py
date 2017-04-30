@@ -29,6 +29,8 @@ parser.add_argument('--ndf', type=int, default=64)
 parser.add_argument('--nconv', type=int, default=64)
 parser.add_argument('--nef', type=int, default=64)
 parser.add_argument('--niter', type=int, default=25, help='number of epochs to train for')
+parser.add_argument('--nstart', type=int, default=25, help='number of startup generator runs')
+parser.add_argument('--lrD', type=float, default=0.00005, help='learning rate for Critic, default=0.00005')
 parser.add_argument('--lrD', type=float, default=0.00005, help='learning rate for Critic, default=0.00005')
 parser.add_argument('--lrG', type=float, default=0.00005, help='learning rate for Generator, default=0.00005')
 parser.add_argument('--beta1', type=float, default=0.5, help='beta1 for adam. default=0.5')
@@ -182,7 +184,7 @@ for epoch in range(opt.niter):
         # train the discriminator Diters times
         if gen_iterations == 0:
             Diters = 1 # Self-test
-        elif redo > 0 or gen_iterations < 25 or gen_iterations % 500 == 0:
+        elif redo > 0 or gen_iterations < opt.nstart or gen_iterations % 500 == 0:
             Diters = opt.Diter_plus
         else:
             Diters = opt.Diters
@@ -263,7 +265,7 @@ for epoch in range(opt.niter):
         optimizerG.step()
         gen_iterations += 1
 
-        if gen_iterations < 25 or gen_iterations % 50 == 0:
+        if gen_iterations < opt.nstart or gen_iterations % 50 == 0:
             print('[%d/%d][%d/%d][%d] Loss_D: %f Loss_B: %f'
                 % (epoch, opt.niter, i, len(dataloader), gen_iterations,
                 errD.data[0], errB.data[0]))
