@@ -8,19 +8,9 @@ class DCGAN_E(nn.Module):
         assert isize % 16 == 0, "isize has to be a multiple of 16"
 
         main = nn.Sequential()
-
-        cnef = nc
-        main.add_module('preproc.conv',
-                        nn.Conv2d(nc, nef, 3, 1, 1, bias=False))
-        main.add_module('preproc.{0}.relu'.format(cnef),
-                        nn.LeakyReLU(0.2, inplace=True))
-        cnef = nef
-
         # input is nc x isize x isize
         main.add_module('initial.conv.{0}-{1}'.format(nc, nef),
-                        nn.Conv2d(nef, nef, 4, 2, 1, bias=False))
-        main.add_module('preproc.batchnorm',
-                        nn.BatchNorm2d(cnef))
+                        nn.Conv2d(nc, nef, 4, 2, 1, bias=False))
         main.add_module('initial.relu.{0}'.format(nef),
                         nn.LeakyReLU(0.2, inplace=True))
         csize, cnef = isize / 2, nef
@@ -98,12 +88,7 @@ class DCGAN_G(nn.Module):
                             nn.ReLU(True))
 
         main.add_module('final.{0}-{1}.convt'.format(cngf, cngf),
-                        nn.ConvTranspose2d(cngf, cngf, 4, 2, 1, bias=False))
-        main.add_module('final-{0}.relu'.format(cngf),
-                        nn.ReLU(True))
-        main.add_module('final.{0}-{1}.convt'.format(cngf, nc),
-                        nn.ConvTranspose2d(cngf, nc, 3, 1, 1, bias=False))
-
+                        nn.ConvTranspose2d(cngf, nc, 4, 2, 1, bias=False))
         main.add_module('final.{0}.tanh'.format(nc),
                         nn.Tanh())
         self.main = main

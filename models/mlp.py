@@ -30,24 +30,21 @@ class MLP_D(nn.Module):
 
 class MLP_ED(nn.Module):
     '''Combines DCGAN and MLP.'''
-    def __init__(self, isize, nz, nc, ndf, div=2, nconv=0):
+    def __init__(self, isize, nz, nc, ndf, nconv=0):
         super(MLP_ED, self).__init__()
+
         if nconv == 0:
             nconv = ndf
-        self.div = div
-        self.netG = dg.DCGAN_G(isize // div, nz, nc, nconv)
-        self.netE = dg.DCGAN_E(isize // div, nz, nc, nconv)
+
+        self.netG = dg.DCGAN_G(isize, nz, nc, nconv)
+        self.netE = dg.DCGAN_E(isize, nz, nc, nconv)
         self.pool = nn.AvgPool2d(2)
 
-        all_dim = int(2 * (nc * (isize // div)**2 + nz))
+        all_dim = int(2 * (nc * (isize)**2 + nz))
         self.mlp = MLP_D(all_dim, ndf)
         self.nz = nz
 
     def forward(self, z, x):
-        d = 1
-        while d < self.div:
-            x = self.pool(x)
-            d = d * 2
         zt = self.netE(x)
         xt = self.netG(z.unsqueeze(2).unsqueeze(3))
         x = x.view(x.size(0), -1).squeeze()

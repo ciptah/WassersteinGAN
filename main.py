@@ -28,8 +28,6 @@ parser.add_argument('--nz', type=int, default=100, help='size of the latent z ve
 parser.add_argument('--ngf', type=int, default=64)
 parser.add_argument('--ndf', type=int, default=64)
 parser.add_argument('--nconv', type=int, default=64)
-parser.add_argument('--div', type=int, default=2,
-        help='scale of discriminator networks (power of 2')
 parser.add_argument('--nef', type=int, default=64)
 parser.add_argument('--niter', type=int, default=25, help='number of epochs to train for')
 parser.add_argument('--nstart', type=int, default=25, help='number of startup generator runs')
@@ -142,7 +140,7 @@ if opt.mlp_D:
 else:
     # Use a DCGAN to turn the image to a vector, then compare against z.
     print('using DCNN->MLP discriminator')
-    netD = mlp.MLP_ED(opt.imageSize, nz, nc, ndf, div=opt.div, nconv=nconv)
+    netD = mlp.MLP_ED(opt.imageSize, nz, nc, ndf, nconv=nconv)
     netD.netE.apply(weights_init)
     netD.netG.apply(weights_init)
 print(netD)
